@@ -20,6 +20,9 @@ export default function Home() {
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const [deployedContractAddress, setDeployedContractAddress] = useState<string | null>(null);
   const [deployedTransactionHash, setDeployedTransactionHash] = useState<string | null>(null);
+  
+  // Check if we're in demo mode
+  const isDemoMode = !window.ethereum && isConnected;
 
   const handleDeployStart = () => {
     setDeploymentStep(0);
@@ -54,25 +57,42 @@ export default function Home() {
             <Wallet className="h-12 w-12 mx-auto text-dark-400" />
             <h2 className="mt-4 text-xl font-medium">Connect Your Wallet</h2>
             <p className="mt-2 text-dark-500 dark:text-dark-400">
-              Connect your MetaMask wallet to deploy and interact with smart contracts on Arbitrum Testnet.
+              Connect your wallet to deploy and interact with smart contracts on Arbitrum Testnet.
+              {!window.ethereum && (
+                <span className="block mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                  MetaMask not detected, but you can still try the app in demo mode.
+                </span>
+              )}
             </p>
             <Button
               onClick={connect}
               className="mt-4 bg-primary hover:bg-primary-600 text-white font-medium inline-flex items-center"
             >
               <Wallet className="h-5 w-5 mr-2" />
-              Connect MetaMask
+              {window.ethereum ? "Connect MetaMask" : "Try Demo Mode"}
             </Button>
           </div>
         )}
 
         {/* Wrong Network Warning */}
         {isConnected && !isArbitrumTestnet && (
-          <Alert variant="warning" className="mb-6">
+          <Alert variant="destructive" className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200">
             <AlertCircle className="h-6 w-6 text-yellow-500" />
-            <AlertTitle className="text-lg font-medium text-yellow-800 dark:text-yellow-200">Wrong Network</AlertTitle>
+            <AlertTitle className="text-lg font-medium text-yellow-800 dark:text-yellow-200">
+              Wrong Network
+              {!window.ethereum && (
+                <span className="ml-2 text-sm bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 px-2 py-0.5 rounded-md">
+                  Demo Mode
+                </span>
+              )}
+            </AlertTitle>
             <AlertDescription className="mt-2 text-yellow-700 dark:text-yellow-300">
-              <p>Please switch to Arbitrum Testnet in your MetaMask wallet to use this application.</p>
+              <p>
+                {window.ethereum 
+                  ? "Please switch to Arbitrum Testnet in your MetaMask wallet to use this application."
+                  : "In demo mode, we need to simulate being on the correct network."
+                }
+              </p>
               <Button
                 onClick={switchNetwork}
                 className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700"

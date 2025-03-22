@@ -72,7 +72,9 @@ export function useWeb3() {
           });
         } else {
           // Real implementation with MetaMask
-          const accounts = await window.ethereum.request({ method: "eth_accounts" });
+          // TypeScript safety: we've already checked window.ethereum exists in the outer if statement
+          const ethereum = window.ethereum!;
+          const accounts = await ethereum.request({ method: "eth_accounts" });
           const account = accounts[0];
           const { chainId, name, isArbitrumTestnet } = await getNetwork();
           const balance = await getBalance(account);
@@ -107,24 +109,25 @@ export function useWeb3() {
   useEffect(() => {
     checkConnection();
     
-    // Set up event listeners
-    if (window.ethereum) {
-      window.ethereum.on("accountsChanged", checkConnection);
-      window.ethereum.on("chainChanged", checkConnection);
-      window.ethereum.on("connect", checkConnection);
-      window.ethereum.on("disconnect", checkConnection);
+    // Set up event listeners if MetaMask is available
+    const ethereum = window.ethereum;
+    if (ethereum && !useMock) {
+      ethereum.on("accountsChanged", checkConnection);
+      ethereum.on("chainChanged", checkConnection);
+      ethereum.on("connect", checkConnection);
+      ethereum.on("disconnect", checkConnection);
     }
     
     return () => {
       // Clean up event listeners
-      if (window.ethereum) {
-        window.ethereum.removeListener("accountsChanged", checkConnection);
-        window.ethereum.removeListener("chainChanged", checkConnection);
-        window.ethereum.removeListener("connect", checkConnection);
-        window.ethereum.removeListener("disconnect", checkConnection);
+      if (ethereum && !useMock) {
+        ethereum.removeListener("accountsChanged", checkConnection);
+        ethereum.removeListener("chainChanged", checkConnection);
+        ethereum.removeListener("connect", checkConnection);
+        ethereum.removeListener("disconnect", checkConnection);
       }
     };
-  }, [checkConnection]);
+  }, [checkConnection, useMock]);
 
   // Connect wallet function
   const connect = useCallback(async () => {

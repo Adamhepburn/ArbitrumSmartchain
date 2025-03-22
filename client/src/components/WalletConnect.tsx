@@ -45,7 +45,7 @@ export function WalletConnect({ className }: WalletConnectProps) {
   if (!isArbitrumTestnet) {
     return (
       <div className="space-y-2">
-        <Alert variant="warning">
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Wrong Network</AlertTitle>
           <AlertDescription>
@@ -59,6 +59,12 @@ export function WalletConnect({ className }: WalletConnectProps) {
         >
           Switch Network
         </Button>
+        {isDemoMode && (
+          <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 flex items-center">
+            <Code className="h-3 w-3 mr-1" />
+            Demo Mode
+          </Badge>
+        )}
       </div>
     );
   }
@@ -73,7 +79,15 @@ export function WalletConnect({ className }: WalletConnectProps) {
       <div className="flex items-center space-x-2 bg-dark-100 dark:bg-dark-700 px-3 py-1.5 rounded-lg">
         <Wallet className="h-5 w-5 text-secondary" />
         <div className="text-sm flex flex-col">
-          <span className="text-dark-500 dark:text-dark-300 text-xs">Connected Wallet</span>
+          <div className="flex items-center">
+            <span className="text-dark-500 dark:text-dark-300 text-xs">Connected Wallet</span>
+            {isDemoMode && (
+              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 flex items-center text-xs py-0">
+                <Code className="h-3 w-3 mr-1" />
+                Demo
+              </Badge>
+            )}
+          </div>
           <span className="font-mono text-dark-800 dark:text-white">{displayAccount}</span>
         </div>
       </div>

@@ -10,8 +10,9 @@ import { TransactionHistory } from "@/components/TransactionHistory";
 import { useWeb3 } from "@/hooks/useWeb3";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Wallet } from "lucide-react";
+import { AlertCircle, Wallet, Code, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   const { isConnected, isArbitrumTestnet, connect, switchNetwork } = useWeb3();
@@ -106,6 +107,24 @@ export default function Home() {
         {/* Connected Content */}
         {isConnected && isArbitrumTestnet && (
           <div className="space-y-6">
+            {/* Demo Mode Banner */}
+            {isDemoMode && (
+              <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 mb-4">
+                <Info className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                <AlertTitle className="flex items-center text-blue-700 dark:text-blue-300 font-medium">
+                  Demo Mode Active
+                  <Badge className="ml-2 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 flex items-center">
+                    <Code className="h-3 w-3 mr-1" />
+                    Simulated Blockchain
+                  </Badge>
+                </AlertTitle>
+                <AlertDescription className="text-blue-600 dark:text-blue-400">
+                  You're using the application in demo mode. All blockchain interactions are simulated.
+                  To use real blockchain transactions, please install MetaMask.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             {/* Tabs */}
             <Tabs defaultValue="deploy" value={activeTab} onValueChange={setActiveTab}>
               <div className="border-b border-dark-200 dark:border-dark-700">

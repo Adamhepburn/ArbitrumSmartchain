@@ -9,6 +9,16 @@ import {
   callContractMethod,
   executeContractMethod
 } from "@/lib/web3";
+import {
+  mockConnectWallet,
+  mockGetNetwork,
+  mockGetBalance,
+  mockIsWalletConnected,
+  mockSwitchToArbitrumTestnet,
+  mockDeployContract,
+  mockCallContractMethod,
+  mockExecuteContractMethod
+} from "@/lib/mockWeb3";
 import { useToast } from "@/hooks/use-toast";
 
 interface Web3State {
@@ -33,26 +43,50 @@ export function useWeb3() {
   });
   const { toast } = useToast();
 
+  // Check if we should use mock implementation
+  const [useMock] = useState(!window.ethereum);
+
   // Check wallet connection on initial load
   const checkConnection = useCallback(async () => {
     try {
-      const connected = await isWalletConnected();
+      // Use either real or mock implementation
+      const connected = useMock 
+        ? await mockIsWalletConnected()
+        : await isWalletConnected();
       
       if (connected) {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" });
-        const account = accounts[0];
-        const { chainId, name, isArbitrumTestnet } = await getNetwork();
-        const balance = await getBalance(account);
-        
-        setState({
-          isConnected: true,
-          isLoading: false,
-          account,
-          chainId,
-          networkName: name,
-          isArbitrumTestnet,
-          balance,
-        });
+        if (useMock) {
+          // Mock implementation
+          const account = localStorage.getItem("mockWalletAddress") || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+          const { chainId, name, isArbitrumTestnet } = await mockGetNetwork();
+          const balance = await mockGetBalance(account);
+          
+          setState({
+            isConnected: true,
+            isLoading: false,
+            account,
+            chainId,
+            networkName: name,
+            isArbitrumTestnet,
+            balance,
+          });
+        } else {
+          // Real implementation with MetaMask
+          const accounts = await window.ethereum.request({ method: "eth_accounts" });
+          const account = accounts[0];
+          const { chainId, name, isArbitrumTestnet } = await getNetwork();
+          const balance = await getBalance(account);
+          
+          setState({
+            isConnected: true,
+            isLoading: false,
+            account,
+            chainId,
+            networkName: name,
+            isArbitrumTestnet,
+            balance,
+          });
+        }
       } else {
         setState({
           isConnected: false,
@@ -68,7 +102,7 @@ export function useWeb3() {
       console.error("Error checking connection:", error);
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  }, []);
+  }, [useMock]);
 
   useEffect(() => {
     checkConnection();
@@ -97,23 +131,37 @@ export function useWeb3() {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
-      if (!window.ethereum) {
+      if (useMock) {
+        // Use mock connect
+        const address = await mockConnectWallet();
+        localStorage.setItem("mockWalletAddress", address);
+        await checkConnection();
+        
+        toast({
+          title: "Mock wallet connected",
+          description: "A simulated wallet has been connected for demonstration",
+        });
+      } else if (!window.ethereum) {
         toast({
           title: "MetaMask not installed",
-          description: "Please install MetaMask to use this application",
+          description: "Using demo mode since MetaMask is not available",
           variant: "destructive",
         });
-        setState(prev => ({ ...prev, isLoading: false }));
-        return;
+        
+        // Switch to mock mode for this session
+        const address = await mockConnectWallet();
+        localStorage.setItem("mockWalletAddress", address);
+        await checkConnection();
+      } else {
+        // Use real connect
+        await connectWallet();
+        await checkConnection();
+        
+        toast({
+          title: "Wallet connected",
+          description: "Your wallet has been connected successfully",
+        });
       }
-      
-      await connectWallet();
-      await checkConnection();
-      
-      toast({
-        title: "Wallet connected",
-        description: "Your wallet has been connected successfully",
-      });
     } catch (error: any) {
       console.error("Error connecting wallet:", error);
       toast({
@@ -123,14 +171,21 @@ export function useWeb3() {
       });
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  }, [checkConnection, toast]);
+  }, [checkConnection, toast, useMock]);
 
   // Switch network function
   const switchNetwork = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
-      await switchToArbitrumTestnet();
+      if (useMock) {
+        // Use mock switch network
+        await mockSwitchToArbitrumTestnet();
+      } else {
+        // Use real switch network
+        await switchToArbitrumTestnet();
+      }
+      
       await checkConnection();
       
       toast({
@@ -146,7 +201,7 @@ export function useWeb3() {
       });
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  }, [checkConnection, toast]);
+  }, [checkConnection, toast, useMock]);
 
   // Deploy contract function
   const deploy = useCallback(async (
@@ -165,13 +220,26 @@ export function useWeb3() {
         throw new Error("Please switch to Arbitrum Testnet");
       }
       
-      const result = await deployContract(
-        contractType,
-        contractName,
-        contractSymbol,
-        initialSupply,
-        customCode
-      );
+      let result;
+      if (useMock) {
+        // Use mock deploy
+        result = await mockDeployContract(
+          contractType,
+          contractName,
+          contractSymbol,
+          initialSupply,
+          customCode
+        );
+      } else {
+        // Use real deploy
+        result = await deployContract(
+          contractType,
+          contractName,
+          contractSymbol,
+          initialSupply,
+          customCode
+        );
+      }
       
       toast({
         title: "Contract deployed",
@@ -188,7 +256,7 @@ export function useWeb3() {
       });
       throw error;
     }
-  }, [state.isConnected, state.isArbitrumTestnet, toast]);
+  }, [state.isConnected, state.isArbitrumTestnet, toast, useMock]);
 
   // Call contract read method
   const callMethod = useCallback(async (
@@ -202,7 +270,13 @@ export function useWeb3() {
         throw new Error("Wallet not connected");
       }
       
-      return await callContractMethod(contractAddress, abi, methodName, args);
+      if (useMock) {
+        // Use mock call
+        return await mockCallContractMethod(contractAddress, abi, methodName, args);
+      } else {
+        // Use real call
+        return await callContractMethod(contractAddress, abi, methodName, args);
+      }
     } catch (error: any) {
       console.error(`Error calling ${methodName}:`, error);
       toast({
@@ -212,7 +286,7 @@ export function useWeb3() {
       });
       throw error;
     }
-  }, [state.isConnected, toast]);
+  }, [state.isConnected, toast, useMock]);
 
   // Execute contract write method
   const executeMethod = useCallback(async (
@@ -230,7 +304,14 @@ export function useWeb3() {
         throw new Error("Please switch to Arbitrum Testnet");
       }
       
-      const result = await executeContractMethod(contractAddress, abi, methodName, args);
+      let result;
+      if (useMock) {
+        // Use mock execute
+        result = await mockExecuteContractMethod(contractAddress, abi, methodName, args);
+      } else {
+        // Use real execute
+        result = await executeContractMethod(contractAddress, abi, methodName, args);
+      }
       
       toast({
         title: "Transaction successful",
@@ -247,7 +328,7 @@ export function useWeb3() {
       });
       throw error;
     }
-  }, [state.isConnected, state.isArbitrumTestnet, toast]);
+  }, [state.isConnected, state.isArbitrumTestnet, toast, useMock]);
 
   return {
     ...state,

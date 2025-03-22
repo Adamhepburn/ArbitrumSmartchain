@@ -1,9 +1,10 @@
 import { useWeb3 } from "@/hooks/useWeb3";
 import { Button } from "@/components/ui/button";
 import { NetworkBadge } from "@/components/NetworkBadge";
-import { Wallet, AlertCircle } from "lucide-react";
+import { Wallet, AlertCircle, Code } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 interface WalletConnectProps {
   className?: string;
@@ -20,6 +21,9 @@ export function WalletConnect({ className }: WalletConnectProps) {
     connect,
     switchNetwork,
   } = useWeb3();
+  
+  // Check if we're in demo mode
+  const isDemoMode = !window.ethereum && isConnected;
 
   const displayAccount = account
     ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}`

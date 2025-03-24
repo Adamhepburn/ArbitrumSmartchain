@@ -8,6 +8,7 @@ import { ContractInteraction } from "@/components/ContractInteraction";
 import { ContractInfo } from "@/components/ContractInfo";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { BetCreation } from "@/components/BetCreation";
+import { BetInteraction } from "@/components/BetInteraction";
 import { useWeb3 } from "@/hooks/useWeb3";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -239,9 +240,17 @@ export default function Home() {
               {/* Interact Tab */}
               <TabsContent value="interact" className="mt-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Contract Interaction */}
+                  {/* Interaction Form */}
                   <div className="lg:col-span-2">
-                    <ContractInteraction onContractLoad={handleContractLoad} />
+                    {/* Show specialized betting interface if a bet contract is selected */}
+                    {selectedContract && selectedContract.name === "Betting Contract" ? (
+                      <BetInteraction 
+                        contractAddress={selectedContract.address} 
+                        account={window.ethereum && isConnected ? window.ethereum.selectedAddress : null}
+                      />
+                    ) : (
+                      <ContractInteraction onContractLoad={handleContractLoad} />
+                    )}
                   </div>
 
                   {/* Contract Info */}

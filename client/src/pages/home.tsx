@@ -7,6 +7,7 @@ import { DeploymentStatus } from "@/components/DeploymentStatus";
 import { ContractInteraction } from "@/components/ContractInteraction";
 import { ContractInfo } from "@/components/ContractInfo";
 import { TransactionHistory } from "@/components/TransactionHistory";
+import { BetCreation } from "@/components/BetCreation";
 import { useWeb3 } from "@/hooks/useWeb3";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,11 +17,14 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   const { isConnected, isArbitrumTestnet, connect, switchNetwork } = useWeb3();
-  const [activeTab, setActiveTab] = useState("deploy");
+  const [activeTab, setActiveTab] = useState("bet");
   const [deploymentStep, setDeploymentStep] = useState(0);
+  const [betCreationStep, setBetCreationStep] = useState(0);
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const [deployedContractAddress, setDeployedContractAddress] = useState<string | null>(null);
   const [deployedTransactionHash, setDeployedTransactionHash] = useState<string | null>(null);
+  const [createdBetAddress, setCreatedBetAddress] = useState<string | null>(null);
+  const [createdBetHash, setCreatedBetHash] = useState<string | null>(null);
   
   // Check if we're in demo mode
   const isDemoMode = !window.ethereum && isConnected;

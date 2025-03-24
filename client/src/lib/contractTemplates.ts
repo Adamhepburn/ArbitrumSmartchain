@@ -96,6 +96,159 @@ contract ERC20Token {
         allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
+}`,
+
+  BettingContract: `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract BettingContract {
+    enum Status { Open, Accepted, Resolved, Voided }
+    enum Outcome { NotResolved, Outcome1Wins, Outcome2Wins, Draw }
+    
+    struct BetDetails {
+        string title;
+        string description;
+        string category;
+        string outcome1;
+        string outcome2;
+        uint256 endDate;
+        uint256 betAmount;
+        address creator;
+        address acceptor;
+        address resolver;
+        Status status;
+        Outcome outcome;
+    }
+    
+    string public title;
+    string public description;
+    string public category;
+    string public outcome1;
+    string public outcome2;
+    uint256 public endDate;
+    uint256 public betAmount;
+    
+    address public creator;
+    address public acceptor;
+    address public resolver;
+    
+    Status public status;
+    Outcome public outcome;
+    
+    event BetAccepted(address indexed acceptor, uint256 amount);
+    event BetResolved(Outcome outcome, address indexed winner);
+    event BetVoided();
+    
+    modifier onlyResolver() {
+        require(msg.sender == resolver, "Only the resolver can call this function");
+        _;
+    }
+    
+    modifier onlyBeforeEndDate() {
+        require(block.timestamp < endDate, "Bet period has ended");
+        _;
+    }
+    
+    modifier onlyAfterEndDate() {
+        require(block.timestamp >= endDate, "Bet period has not ended yet");
+        _;
+    }
+    
+    constructor(
+        string memory _title,
+        string memory _description,
+        string memory _category,
+        string memory _outcome1,
+        string memory _outcome2,
+        uint256 _endDate,
+        address _resolver
+    ) payable {
+        require(_endDate > block.timestamp, "End date must be in the future");
+        
+        title = _title;
+        description = _description;
+        category = _category;
+        outcome1 = _outcome1;
+        outcome2 = _outcome2;
+        endDate = _endDate;
+        betAmount = msg.value;
+        
+        creator = msg.sender;
+        resolver = _resolver;
+        status = Status.Open;
+        outcome = Outcome.NotResolved;
+    }
+    
+    function acceptBet() external payable returns (uint256) {
+        require(status == Status.Open, "Bet is not open for acceptance");
+        require(msg.value == betAmount, "Must match the exact bet amount");
+        require(msg.sender != creator, "Creator cannot accept their own bet");
+        
+        acceptor = msg.sender;
+        status = Status.Accepted;
+        
+        emit BetAccepted(acceptor, msg.value);
+        
+        return betAmount;
+    }
+    
+    function resolveBet(Outcome _outcome) external onlyResolver {
+        require(status == Status.Accepted, "Bet must be accepted before resolving");
+        require(_outcome != Outcome.NotResolved, "Cannot resolve to NotResolved state");
+        require(outcome == Outcome.NotResolved, "Bet already resolved");
+        
+        outcome = _outcome;
+        status = Status.Resolved;
+        
+        address winner;
+        if (_outcome == Outcome.Outcome1Wins) {
+            winner = creator;
+        } else if (_outcome == Outcome.Outcome2Wins) {
+            winner = acceptor;
+        } else {
+            // In case of a draw, both get their money back
+            payable(creator).transfer(betAmount);
+            payable(acceptor).transfer(betAmount);
+            emit BetResolved(_outcome, address(0));
+            return;
+        }
+        
+        // Winner gets both stakes
+        payable(winner).transfer(betAmount * 2);
+        
+        emit BetResolved(_outcome, winner);
+    }
+    
+    function voidBet() external onlyResolver {
+        require(status == Status.Open || status == Status.Accepted, "Cannot void resolved or already voided bet");
+        
+        status = Status.Voided;
+        
+        // Return funds to participants
+        payable(creator).transfer(betAmount);
+        if (status == Status.Accepted) {
+            payable(acceptor).transfer(betAmount);
+        }
+        
+        emit BetVoided();
+    }
+    
+    function getBetDetails() external view returns (BetDetails memory) {
+        return BetDetails({
+            title: title,
+            description: description,
+            category: category,
+            outcome1: outcome1,
+            outcome2: outcome2,
+            endDate: endDate,
+            betAmount: betAmount,
+            creator: creator,
+            acceptor: acceptor,
+            resolver: resolver,
+            status: status,
+            outcome: outcome
+        });
+    }
 }`
 };
 

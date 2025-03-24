@@ -49,6 +49,34 @@ export default function Home() {
   const handleContractLoad = (contract: any) => {
     setSelectedContract(contract);
   };
+  
+  // Bet creation handlers
+  const handleBetCreationStart = () => {
+    setBetCreationStep(0);
+  };
+  
+  const handleBetCreationProgress = (step: number) => {
+    setBetCreationStep(step);
+  };
+  
+  const handleBetCreationComplete = (betAddress: string, transactionHash: string) => {
+    setCreatedBetAddress(betAddress);
+    setCreatedBetHash(transactionHash);
+    // Switch to interact tab to allow interaction with the newly created bet
+    setActiveTab("interact");
+    // Automatically load the contract for interaction
+    setSelectedContract({
+      name: "Betting Contract",
+      address: betAddress,
+      network: "Arbitrum Testnet",
+      deployedAtBlock: Date.now() // Using timestamp as a proxy since we don't have the actual block number
+    });
+  };
+  
+  const handleBetCreationError = (error: Error) => {
+    console.error("Bet creation error:", error);
+    setBetCreationStep(0);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-dark-900 text-dark-800 dark:text-white">
@@ -130,14 +158,63 @@ export default function Home() {
             )}
             
             {/* Tabs */}
-            <Tabs defaultValue="deploy" value={activeTab} onValueChange={setActiveTab}>
+            <Tabs defaultValue="bet" value={activeTab} onValueChange={setActiveTab}>
               <div className="border-b border-dark-200 dark:border-dark-700">
                 <TabsList className="bg-transparent">
+                  <TabsTrigger value="bet">Create Bet</TabsTrigger>
                   <TabsTrigger value="deploy">Deploy Contract</TabsTrigger>
                   <TabsTrigger value="interact">Interact</TabsTrigger>
                   <TabsTrigger value="transactions">Transactions</TabsTrigger>
                 </TabsList>
               </div>
+              
+              {/* Bet Creation Tab */}
+              <TabsContent value="bet" className="mt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Bet Creation Form */}
+                  <div className="lg:col-span-2">
+                    <BetCreation
+                      onBetCreationStart={handleBetCreationStart}
+                      onBetCreationProgress={handleBetCreationProgress}
+                      onBetCreationComplete={handleBetCreationComplete}
+                      onBetCreationError={handleBetCreationError}
+                    />
+                  </div>
+
+                  {/* Bet Creation Status */}
+                  <div className="lg:col-span-1">
+                    <DeploymentStatus 
+                      currentStep={betCreationStep} 
+                    />
+                    
+                    {createdBetAddress && (
+                      <div className="mt-6 rounded-lg bg-green-50 dark:bg-green-900/20 p-4 border border-green-200 dark:border-green-800">
+                        <h3 className="font-medium text-green-800 dark:text-green-200 flex items-center">
+                          <Info className="h-5 w-5 mr-2" />
+                          Bet Successfully Created
+                        </h3>
+                        <div className="mt-2 space-y-2">
+                          <div className="text-sm text-green-700 dark:text-green-300">
+                            <span className="font-medium">Contract Address:</span>
+                            <p className="font-mono text-xs break-all mt-1">{createdBetAddress}</p>
+                          </div>
+                          <div className="text-sm text-green-700 dark:text-green-300">
+                            <span className="font-medium">Transaction Hash:</span>
+                            <p className="font-mono text-xs break-all mt-1">{createdBetHash}</p>
+                          </div>
+                          <Button
+                            onClick={() => setActiveTab("interact")}
+                            variant="outline" 
+                            className="mt-2 text-green-700 border-green-300 hover:bg-green-50 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/40"
+                          >
+                            Interact with this Bet
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
 
               {/* Deploy Contract Tab */}
               <TabsContent value="deploy" className="mt-6">

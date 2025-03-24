@@ -431,7 +431,7 @@ export function BetInteraction({ contractAddress, account }: BetInteractionProps
           <TabsContent value="details" className="space-y-4">
             <div>
               <h3 className="text-sm font-medium text-dark-500 dark:text-dark-400 mb-1">Description</h3>
-              <p className="text-dark-800 dark:text-dark-200">{betDetails.description}</p>
+              <p className="text-dark-800 dark:text-white">{betDetails.description}</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -517,7 +517,7 @@ export function BetInteraction({ contractAddress, account }: BetInteractionProps
                         Creator 
                         {isCreator && <Badge className="ml-2 text-xs">You</Badge>}
                       </p>
-                      <p className="text-sm text-dark-500 dark:text-dark-400 font-mono">
+                      <p className="text-sm text-dark-700 dark:text-gray-300 font-mono">
                         {betDetails.creator}
                       </p>
                     </div>
@@ -534,11 +534,11 @@ export function BetInteraction({ contractAddress, account }: BetInteractionProps
                         {isAcceptor && <Badge className="ml-2 text-xs">You</Badge>}
                       </p>
                       {betDetails.acceptor && betDetails.acceptor !== "0x0" ? (
-                        <p className="text-sm text-dark-500 dark:text-dark-400 font-mono">
+                        <p className="text-sm text-dark-700 dark:text-gray-300 font-mono">
                           {betDetails.acceptor}
                         </p>
                       ) : (
-                        <p className="text-sm text-dark-500 dark:text-dark-400 italic">
+                        <p className="text-sm text-dark-700 dark:text-gray-300 italic">
                           Not yet accepted
                         </p>
                       )}
@@ -555,7 +555,7 @@ export function BetInteraction({ contractAddress, account }: BetInteractionProps
                         Resolver
                         {isResolver && <Badge className="ml-2 text-xs">You</Badge>}
                       </p>
-                      <p className="text-sm text-dark-500 dark:text-dark-400 font-mono">
+                      <p className="text-sm text-dark-700 dark:text-gray-300 font-mono">
                         {betDetails.resolver}
                       </p>
                     </div>

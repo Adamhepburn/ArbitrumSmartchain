@@ -441,7 +441,7 @@ export function BetCreation({
                           min="0.001"
                           step="0.001"
                           placeholder="0.05"
-                          className="pl-9"
+                          className="pl-9 text-dark-800 dark:text-white"
                           {...field} 
                         />
                       </div>

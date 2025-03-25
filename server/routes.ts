@@ -5,6 +5,7 @@ import { insertContractSchema, insertTransactionSchema, insertUserSchema } from 
 import { contractService } from "./contractService";
 import { walletService } from "./walletService";
 import { transactionService } from "./transactionService";
+import { setupAuth } from "./auth";
 import { z } from "zod";
 import { ethers } from "ethers";
 

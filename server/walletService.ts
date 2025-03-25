@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import crypto from "crypto";
+import { randomBytes, scryptSync, createCipheriv, createDecipheriv, createHash } from "crypto";
 
 class WalletService {
   /**
@@ -9,11 +9,11 @@ class WalletService {
    */
   async createWallet(password: string): Promise<{ address: string; encryptedJson: string }> {
     try {
-      // Generate a random wallet
+      // Generate a new random wallet
       const wallet = ethers.Wallet.createRandom();
       
-      // Encrypt the wallet with the user's password
-      const encryptedJson = await wallet.encrypt(password);
+      // Encrypt the wallet with the password
+      const encryptedJson = await this.encryptWallet(wallet, password);
       
       return {
         address: wallet.address,
@@ -21,7 +21,23 @@ class WalletService {
       };
     } catch (error) {
       console.error("Error creating wallet:", error);
-      throw new Error("Failed to create wallet");
+      throw error;
+    }
+  }
+  
+  /**
+   * Encrypt an Ethereum wallet
+   * @param wallet Wallet instance
+   * @param password Password to encrypt the wallet
+   * @returns Encrypted JSON string
+   */
+  private async encryptWallet(wallet: ethers.Wallet, password: string): Promise<string> {
+    try {
+      const encryptedWallet = await wallet.encrypt(password);
+      return encryptedWallet;
+    } catch (error) {
+      console.error("Error encrypting wallet:", error);
+      throw error;
     }
   }
   
@@ -37,7 +53,7 @@ class WalletService {
       return wallet;
     } catch (error) {
       console.error("Error decrypting wallet:", error);
-      throw new Error("Invalid password or wallet data");
+      throw new Error("Invalid password or corrupted wallet data");
     }
   }
   
@@ -47,8 +63,13 @@ class WalletService {
    * @returns Hashed password
    */
   hashPassword(password: string): string {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    // Generate a random salt
+    const salt = randomBytes(16).toString('hex');
+    
+    // Hash the password with the salt using scrypt
+    const hash = scryptSync(password, salt, 64).toString('hex');
+    
+    // Return the salt and hash joined by a colon
     return `${salt}:${hash}`;
   }
   
@@ -59,9 +80,14 @@ class WalletService {
    * @returns True if password matches
    */
   verifyPassword(password: string, hashedPassword: string): boolean {
-    const [salt, hash] = hashedPassword.split(':');
-    const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    return hash === verifyHash;
+    // Extract the salt and hash from the stored password
+    const [salt, storedHash] = hashedPassword.split(':');
+    
+    // Hash the provided password with the same salt
+    const hash = scryptSync(password, salt, 64).toString('hex');
+    
+    // Compare the new hash with the stored hash
+    return storedHash === hash;
   }
 }
 

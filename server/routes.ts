@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertContractSchema, insertTransactionSchema, insertUserSchema } from "@shared/schema";
 import { contractService } from "./contractService";
 import { walletService } from "./walletService";
+import { transactionService } from "./transactionService";
 import { z } from "zod";
 import { ethers } from "ethers";
 
@@ -323,6 +324,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error compiling contract:", error);
       return res.status(500).json({ message: "Failed to compile contract" });
+    }
+  });
+
+  // Deploy a contract
+  app.post("/api/deploy", async (req, res) => {
+    try {
+      const deploySchema = z.object({
+        username: z.string(),
+        password: z.string(),
+        contractType: z.string(),
+        constructorArgs: z.array(z.any()).optional(),
+      });
+      
+      const parsedBody = deploySchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsedBody.error.errors });
+      }
+      
+      const { username, password, contractType, constructorArgs } = parsedBody.data;
+      
+      const result = await transactionService.deployContract(
+        username,
+        password,
+        contractType,
+        constructorArgs || []
+      );
+      
+      return res.json(result);
+    } catch (error) {
+      console.error("Error deploying contract:", error);
+      return res.status(500).json({ message: "Failed to deploy contract" });
+    }
+  });
+  
+  // Execute a contract method
+  app.post("/api/execute", async (req, res) => {
+    try {
+      const executeSchema = z.object({
+        username: z.string(),
+        password: z.string(),
+        contractAddress: z.string(),
+        methodName: z.string(),
+        args: z.array(z.any()).optional(),
+        value: z.string().optional(),
+      });
+      
+      const parsedBody = executeSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsedBody.error.errors });
+      }
+      
+      const { username, password, contractAddress, methodName, args, value } = parsedBody.data;
+      
+      const result = await transactionService.executeContractMethod(
+        username,
+        password,
+        contractAddress,
+        methodName,
+        args || [],
+        value || "0"
+      );
+      
+      return res.json(result);
+    } catch (error) {
+      console.error("Error executing contract method:", error);
+      return res.status(500).json({ message: "Failed to execute contract method" });
+    }
+  });
+  
+  // Read from a contract (no transaction)
+  app.post("/api/read", async (req, res) => {
+    try {
+      const readSchema = z.object({
+        contractAddress: z.string(),
+        methodName: z.string(),
+        args: z.array(z.any()).optional(),
+      });
+      
+      const parsedBody = readSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsedBody.error.errors });
+      }
+      
+      const { contractAddress, methodName, args } = parsedBody.data;
+      
+      const result = await transactionService.readContractData(
+        contractAddress,
+        methodName,
+        args || []
+      );
+      
+      return res.json({ result });
+    } catch (error) {
+      console.error("Error reading contract data:", error);
+      return res.status(500).json({ message: "Failed to read contract data" });
+    }
+  });
+  
+  // Create a bet
+  app.post("/api/bet", async (req, res) => {
+    try {
+      const betSchema = z.object({
+        username: z.string(),
+        password: z.string(),
+        title: z.string(),
+        description: z.string(),
+        category: z.string(),
+        outcome1: z.string(),
+        outcome2: z.string(),
+        endDate: z.number(),
+        betAmount: z.string(),
+        resolverAddress: z.string().optional(),
+      });
+      
+      const parsedBody = betSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsedBody.error.errors });
+      }
+      
+      const result = await transactionService.createBet(
+        parsedBody.data.username,
+        parsedBody.data.password,
+        parsedBody.data
+      );
+      
+      return res.json(result);
+    } catch (error) {
+      console.error("Error creating bet:", error);
+      return res.status(500).json({ message: "Failed to create bet" });
+    }
+  });
+  
+  // Get wallet balance
+  app.get("/api/balance/:address", async (req, res) => {
+    try {
+      const address = req.params.address;
+      if (!address || typeof address !== "string") {
+        return res.status(400).json({ message: "Invalid address" });
+      }
+      
+      const balance = await transactionService.getBalance(address);
+      return res.json({ balance });
+    } catch (error) {
+      console.error("Error getting balance:", error);
+      return res.status(500).json({ message: "Failed to get balance" });
     }
   });
 

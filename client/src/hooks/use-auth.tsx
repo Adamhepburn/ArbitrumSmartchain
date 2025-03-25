@@ -44,7 +44,7 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   
-  // Temporarily simulate user data - will be implemented with actual API call
+  // Get user from the current session
   const {
     data: user,
     error,
@@ -53,8 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
-        // Will implement actual user fetching later from session
-        return null;
+        const res = await apiRequest("GET", "/api/user");
+        if (res.status === 401) {
+          return null;
+        }
+        return await res.json();
       } catch (error) {
         console.error("Error fetching user:", error);
         return null;
@@ -120,8 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // Will be implemented with session-based logout later
-      return;
+      await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);

@@ -10,6 +10,9 @@ import { z } from "zod";
 import { ethers } from "ethers";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up authentication routes and middleware
+  setupAuth(app);
+  
   // prefix all routes with /api
   
   // User registration - create account with generated wallet

@@ -9,15 +9,18 @@ import { ContractInfo } from "@/components/ContractInfo";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { BetCreation } from "@/components/BetCreation";
 import { BetInteraction } from "@/components/BetInteraction";
+import { WalletManager } from "@/components/WalletManager";
 import { useWeb3 } from "@/hooks/useWeb3";
+import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Wallet, Code, Info } from "lucide-react";
+import { AlertCircle, Wallet, Code, Info, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   const { isConnected, isArbitrumTestnet, connect, switchNetwork } = useWeb3();
+  const { user, logoutMutation } = useAuth();
   const [activeTab, setActiveTab] = useState("bet");
   const [deploymentStep, setDeploymentStep] = useState(0);
   const [betCreationStep, setBetCreationStep] = useState(0);
@@ -91,20 +94,57 @@ export default function Home() {
             <Wallet className="h-12 w-12 mx-auto text-dark-400" />
             <h2 className="mt-4 text-xl font-medium">Connect Your Wallet</h2>
             <p className="mt-2 text-dark-500 dark:text-dark-400">
-              Connect your wallet to deploy and interact with smart contracts on Arbitrum Testnet.
-              {!window.ethereum && (
-                <span className="block mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">
-                  MetaMask not detected, but you can still try the app in demo mode.
-                </span>
+              {user ? (
+                <>
+                  Welcome <span className="font-medium">{user.username}</span>! Your in-app wallet is ready to use.
+                </>
+              ) : (
+                <>
+                  Connect your wallet to deploy and interact with smart contracts on Arbitrum Testnet.
+                  {!window.ethereum && (
+                    <span className="block mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                      MetaMask not detected, but you can still try the app in demo mode.
+                    </span>
+                  )}
+                </>
               )}
             </p>
-            <Button
-              onClick={connect}
-              className="mt-4 bg-primary hover:bg-primary-600 text-white font-medium inline-flex items-center"
-            >
-              <Wallet className="h-5 w-5 mr-2" />
-              {window.ethereum ? "Connect MetaMask" : "Try Demo Mode"}
-            </Button>
+            
+            <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              {!user && (
+                <Button
+                  onClick={connect}
+                  className="bg-primary hover:bg-primary-600 text-white font-medium inline-flex items-center"
+                >
+                  <Wallet className="h-5 w-5 mr-2" />
+                  {window.ethereum ? "Connect MetaMask" : "Try Demo Mode"}
+                </Button>
+              )}
+              
+              {!user && (
+                <Button
+                  variant="outline"
+                  onClick={() => window.location.href = "/auth"}
+                  className="border-primary text-primary hover:bg-primary/10 inline-flex items-center"
+                >
+                  <Wallet className="h-5 w-5 mr-2" />
+                  Register / Login
+                </Button>
+              )}
+              
+              {user && (
+                <Button
+                  onClick={() => {
+                    connect(); 
+                    setActiveTab("wallet");
+                  }}
+                  className="bg-primary hover:bg-primary-600 text-white font-medium inline-flex items-center"
+                >
+                  <Wallet className="h-5 w-5 mr-2" />
+                  Use In-App Wallet
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
@@ -166,6 +206,7 @@ export default function Home() {
                   <TabsTrigger value="deploy">Deploy Contract</TabsTrigger>
                   <TabsTrigger value="interact">Interact</TabsTrigger>
                   <TabsTrigger value="transactions">Transactions</TabsTrigger>
+                  <TabsTrigger value="wallet">My Wallet</TabsTrigger>
                 </TabsList>
               </div>
               
@@ -246,7 +287,7 @@ export default function Home() {
                     {selectedContract && selectedContract.name === "Betting Contract" ? (
                       <BetInteraction 
                         contractAddress={selectedContract.address} 
-                        account={window.ethereum && isConnected ? window.ethereum.selectedAddress : null}
+                        account={user ? user.walletAddress : null}
                       />
                     ) : (
                       <ContractInteraction onContractLoad={handleContractLoad} />
@@ -263,6 +304,61 @@ export default function Home() {
               {/* Transactions Tab */}
               <TabsContent value="transactions" className="mt-6">
                 <TransactionHistory />
+              </TabsContent>
+              
+              {/* Wallet Tab */}
+              <TabsContent value="wallet" className="mt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Wallet Manager */}
+                  <div className="lg:col-span-2">
+                    <WalletManager />
+                  </div>
+                  
+                  {/* Wallet Info and Logout */}
+                  <div className="lg:col-span-1">
+                    {user && (
+                      <div className="bg-white dark:bg-dark-800 rounded-lg shadow-sm p-6 border border-dark-200 dark:border-dark-700">
+                        <h3 className="text-lg font-medium mb-4">Account Details</h3>
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-sm text-dark-500 dark:text-dark-400">Username</p>
+                            <p className="font-medium">{user.username}</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-sm text-dark-500 dark:text-dark-400">Account Created</p>
+                            <p className="font-medium">
+                              {new Date(user.createdAt).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </p>
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+                            onClick={() => logoutMutation.mutate()}
+                            disabled={logoutMutation.isPending}
+                          >
+                            {logoutMutation.isPending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Logging out...
+                              </>
+                            ) : (
+                              <>
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Logout
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

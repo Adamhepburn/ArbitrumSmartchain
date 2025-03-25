@@ -172,7 +172,7 @@ export function DeployContract({
                 <FormItem>
                   <FormLabel>Token Symbol</FormLabel>
                   <FormControl>
-                    <Input placeholder="MTK" {...field} />
+                    <Input placeholder="MTK" className="text-dark-800 dark:text-white" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -186,7 +186,7 @@ export function DeployContract({
                 <FormItem>
                   <FormLabel>Initial Supply</FormLabel>
                   <FormControl>
-                    <Input placeholder="1000000" {...field} />
+                    <Input placeholder="1000000" className="text-dark-800 dark:text-white" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -255,7 +255,7 @@ contract MyContract {
                     <span className="text-dark-500 text-xs ml-1">(optional)</span>
                   </FormLabel>
                   <FormControl>
-                    <Input placeholder="[arg1, arg2, ...]" {...field} />
+                    <Input placeholder="[arg1, arg2, ...]" className="text-dark-800 dark:text-white" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

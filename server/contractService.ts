@@ -1,5 +1,6 @@
 import { simpleStorageAbi, simpleStorageBytecode } from "../shared/contracts/SimpleStorage";
 import { erc20Abi, erc20Bytecode } from "../shared/contracts/ERC20Token";
+import { bettingContractAbi, bettingContractBytecode } from "../shared/contracts/BettingContract";
 
 // This is a simplified service that provides contract ABI and bytecode
 // In a real implementation, you would use a proper Solidity compiler like solc.js
@@ -25,6 +26,12 @@ class ContractService {
         return {
           abi: erc20Abi,
           bytecode: erc20Bytecode
+        };
+      case 'BettingContract':
+      case 'Betting Contract':
+        return {
+          abi: bettingContractAbi,
+          bytecode: bettingContractBytecode
         };
       default:
         throw new Error(`Contract type ${contractType} not supported`);

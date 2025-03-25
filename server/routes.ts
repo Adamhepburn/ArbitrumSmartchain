@@ -10,6 +10,178 @@ import { ethers } from "ethers";
 export async function registerRoutes(app: Express): Promise<Server> {
   // prefix all routes with /api
   
+  // User registration - create account with generated wallet
+  app.post("/api/register", async (req, res) => {
+    try {
+      // Extend the user schema to include password confirmation
+      const registerSchema = insertUserSchema.extend({
+        confirmPassword: z.string()
+      }).refine(data => data.password === data.confirmPassword, {
+        message: "Passwords do not match",
+        path: ["confirmPassword"],
+      });
+      
+      const parsedBody = registerSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid registration data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Check if username is already taken
+      const existingUser = await storage.getUserByUsername(parsedBody.data.username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+      
+      // Create a new wallet for the user
+      const walletData = await walletService.createWallet(parsedBody.data.password);
+      
+      // Hash the password for storage
+      const hashedPassword = walletService.hashPassword(parsedBody.data.password);
+      
+      // Create user with wallet information
+      const user = await storage.createUser({
+        username: parsedBody.data.username,
+        password: hashedPassword,
+        walletAddress: walletData.address,
+        walletEncryptedJson: walletData.encryptedJson
+      });
+      
+      // Return user data without sensitive information
+      return res.status(201).json({
+        id: user.id,
+        username: user.username,
+        walletAddress: user.walletAddress,
+        createdAt: user.createdAt
+      });
+    } catch (error) {
+      console.error("Error registering user:", error);
+      return res.status(500).json({ message: "Failed to register user" });
+    }
+  });
+  
+  // User login
+  app.post("/api/login", async (req, res) => {
+    try {
+      const loginSchema = z.object({
+        username: z.string(),
+        password: z.string()
+      });
+      
+      const parsedBody = loginSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid login data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Find user by username
+      const user = await storage.getUserByUsername(parsedBody.data.username);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+      
+      // Verify password
+      const isPasswordValid = walletService.verifyPassword(
+        parsedBody.data.password, 
+        user.password
+      );
+      
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+      
+      // Return user data with wallet address
+      return res.status(200).json({
+        id: user.id,
+        username: user.username,
+        walletAddress: user.walletAddress,
+        createdAt: user.createdAt
+      });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      return res.status(500).json({ message: "Failed to log in" });
+    }
+  });
+  
+  // Get wallet private key (requires password verification)
+  app.post("/api/wallet/decrypt", async (req, res) => {
+    try {
+      const decryptSchema = z.object({
+        username: z.string(),
+        password: z.string()
+      });
+      
+      const parsedBody = decryptSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Find user by username
+      const user = await storage.getUserByUsername(parsedBody.data.username);
+      if (!user || !user.walletEncryptedJson) {
+        return res.status(404).json({ message: "Wallet not found" });
+      }
+      
+      // Verify password
+      const isPasswordValid = walletService.verifyPassword(
+        parsedBody.data.password, 
+        user.password
+      );
+      
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: "Invalid password" });
+      }
+      
+      // Decrypt wallet
+      const wallet = await walletService.decryptWallet(
+        user.walletEncryptedJson,
+        parsedBody.data.password
+      );
+      
+      // Return wallet information
+      return res.status(200).json({
+        address: wallet.address,
+        privateKey: wallet.privateKey
+      });
+    } catch (error) {
+      console.error("Error decrypting wallet:", error);
+      return res.status(500).json({ message: "Failed to decrypt wallet" });
+    }
+  });
+  
+  // Get user profile by ID
+  app.get("/api/user/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return user data without sensitive information
+      return res.status(200).json({
+        id: user.id,
+        username: user.username,
+        walletAddress: user.walletAddress,
+        createdAt: user.createdAt
+      });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      return res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+  
   // Get contracts by deployer address
   app.get("/api/contracts/:deployerAddress", async (req, res) => {
     try {

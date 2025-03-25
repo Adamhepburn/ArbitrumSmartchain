@@ -172,7 +172,7 @@ export function ContractInteraction({ onContractLoad }: ContractInteractionProps
                     <FormLabel>Contract Address</FormLabel>
                     <div className="flex">
                       <FormControl>
-                        <Input placeholder="0x..." {...field} />
+                        <Input placeholder="0x..." className="text-dark-800 dark:text-white" {...field} />
                       </FormControl>
                       <Button
                         type="submit"
@@ -233,7 +233,7 @@ export function ContractInteraction({ onContractLoad }: ContractInteractionProps
                                 onChange={(e) =>
                                   handleInputChange(`${functionName}_${i}`, e.target.value)
                                 }
-                                className="text-sm"
+                                className="text-sm text-dark-800 dark:text-white"
                               />
                             ))}
                           </div>
@@ -259,8 +259,8 @@ export function ContractInteraction({ onContractLoad }: ContractInteractionProps
                           </Button>
                           
                           {isRead && functionResults[functionName] !== undefined && (
-                            <div className="text-sm text-dark-700 dark:text-dark-300">
-                              Returns: <span className="font-mono">{functionResults[functionName]}</span>
+                            <div className="text-sm text-dark-700 dark:text-gray-300">
+                              Returns: <span className="font-mono text-dark-800 dark:text-white">{functionResults[functionName]}</span>
                             </div>
                           )}
                         </div>
@@ -269,8 +269,8 @@ export function ContractInteraction({ onContractLoad }: ContractInteractionProps
                   })}
                   
                 {contract.abi.filter((item: any) => item.type === "function").length === 0 && (
-                  <div className="text-center p-4 text-dark-500">
-                    <Cpu className="h-12 w-12 mx-auto mb-2 text-dark-400" />
+                  <div className="text-center p-4 text-dark-700 dark:text-gray-300">
+                    <Cpu className="h-12 w-12 mx-auto mb-2 text-dark-500 dark:text-gray-400" />
                     <p>No functions found in this contract</p>
                   </div>
                 )}

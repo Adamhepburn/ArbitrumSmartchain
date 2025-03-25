@@ -158,7 +158,7 @@ export function DeployContract({
                 <FormItem>
                   <FormLabel>Contract Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="MyToken" {...field} />
+                    <Input placeholder="MyToken" className="text-dark-800 dark:text-white" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

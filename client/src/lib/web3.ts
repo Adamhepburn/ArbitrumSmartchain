@@ -167,6 +167,45 @@ export const deployContract = async (
       // Convert to wei (add 18 decimals)
       const initialSupplyWei = initialSupply ? ethers.parseUnits(initialSupply, 18) : ethers.parseUnits("1000000", 18);
       contract = await factory.deploy(contractName, contractSymbol || "TKN", initialSupplyWei);
+    } else if (contractType === "BettingContract") {
+      // Handle BettingContract specifically
+      try {
+        console.log("Deploying BettingContract with customCode:", customCode);
+        
+        // Parse the custom parameters if provided
+        const params = customCode ? JSON.parse(customCode) : {};
+        
+        // Get the end date as timestamp
+        const endDateTimestamp = params.endDate ? Math.floor(new Date(params.endDate).getTime() / 1000) : Math.floor(Date.now() / 1000) + 86400; // Default to 24h from now
+        
+        // Convert amount to wei
+        const amountWei = initialSupply ? ethers.parseEther(initialSupply) : ethers.parseEther("0.01");
+        
+        console.log("Deploying with parameters:", {
+          title: contractName,
+          description: params.description || "No description",
+          category: params.category || "other",
+          outcome1: params.outcome1 || "Yes",
+          outcome2: params.outcome2 || "No",
+          endDate: endDateTimestamp,
+          resolver: params.resolver || (await provider.getSigner()).address
+        });
+        
+        // Deploy with value equal to the bet amount
+        contract = await factory.deploy(
+          contractName,
+          params.description || "No description",
+          params.category || "other",
+          params.outcome1 || "Yes",
+          params.outcome2 || "No",
+          endDateTimestamp,
+          params.resolver || (await provider.getSigner()).address,
+          { value: amountWei }
+        );
+      } catch (error) {
+        console.error("Error deploying BettingContract:", error);
+        throw error;
+      }
     } else {
       contract = await factory.deploy();
     }

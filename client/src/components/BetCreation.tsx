@@ -186,6 +186,8 @@ export function BetCreation({
 
   // Function to handle final submission
   const onSubmit = async (data: BetFormValues) => {
+    console.log("Form submitted with data:", data);
+    
     if (!isConnected) {
       onBetCreationError(new Error("Please connect your wallet first"));
       return;
@@ -626,7 +628,13 @@ export function BetCreation({
       </CardHeader>
       
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={(e) => {
+            console.log("Form submission event triggered");
+            form.handleSubmit((data) => {
+              console.log("Form submission handler called", data);
+              onSubmit(data);
+            })(e);
+          }}>
           <CardContent className="pt-4">
             <AnimatePresence mode="wait">
               <motion.div

@@ -192,8 +192,26 @@ export function BetCreation({
     }
     
     try {
+      console.log("Starting bet creation with data:", data);
       setIsCreating(true);
       onBetCreationStart();
+      
+      // Format the custom parameters
+      const customParams = {
+        description: data.description,
+        category: data.category,
+        outcome1: data.outcome1,
+        outcome2: data.outcome2,
+        endDate: data.endDate,
+        resolver: data.resolver || account,
+      };
+      
+      console.log("Deploying BettingContract with parameters:", {
+        contractType: "BettingContract",
+        title: data.title,
+        amount: data.amount,
+        customParams
+      });
       
       // Create the bet contract
       const result = await deploy(
@@ -202,16 +220,10 @@ export function BetCreation({
         undefined,
         data.amount,
         // Custom parameters for the bet contract
-        JSON.stringify({
-          description: data.description,
-          category: data.category,
-          outcome1: data.outcome1,
-          outcome2: data.outcome2,
-          endDate: data.endDate,
-          resolver: data.resolver || account,
-        })
+        JSON.stringify(customParams)
       );
       
+      console.log("Bet contract deployed successfully:", result);
       onBetCreationComplete(result.address, result.hash);
       
       // Reset form and go back to first step
@@ -219,6 +231,7 @@ export function BetCreation({
       setCurrentStep(0);
       
     } catch (error: any) {
+      console.error("Error creating bet:", error);
       onBetCreationError(error);
     } finally {
       setIsCreating(false);

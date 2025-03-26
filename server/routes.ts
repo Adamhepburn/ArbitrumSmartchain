@@ -1,13 +1,15 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContractSchema, insertTransactionSchema, insertUserSchema } from "@shared/schema";
+import { insertBetSchema, insertContractSchema, insertTransactionSchema, insertUserSchema } from "@shared/schema";
 import { contractService } from "./contractService";
 import { walletService } from "./walletService";
 import { transactionService } from "./transactionService";
 import { setupAuth } from "./auth";
 import { z } from "zod";
 import { ethers } from "ethers";
+import { BetCreationRequestSchema, BetSchema } from "@shared/schemas/bet-schema";
+import { createBetFromRequest } from "@shared/utils/bet-utils";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware

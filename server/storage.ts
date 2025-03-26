@@ -1,7 +1,8 @@
 import { 
   users, type User, type InsertUser,
   contracts, type Contract, type InsertContract,
-  transactions, type Transaction, type InsertTransaction
+  transactions, type Transaction, type InsertTransaction,
+  bets, type Bet, type InsertBet
 } from "@shared/schema";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -27,6 +28,15 @@ export interface IStorage {
   getTransactionsByAddress(address: string): Promise<Transaction[]>;
   getTransactionsByContract(contractAddress: string): Promise<Transaction[]>;
   
+  // Bet related methods
+  createBet(bet: InsertBet): Promise<Bet>;
+  getBet(id: number): Promise<Bet | undefined>;
+  getBetByContractAddress(contractAddress: string): Promise<Bet | undefined>;
+  getBetsByCreator(creatorAddress: string): Promise<Bet[]>;
+  getBetsByAcceptor(acceptorAddress: string): Promise<Bet[]>;
+  getBetsByStatus(status: string): Promise<Bet[]>;
+  updateBet(id: number, updates: Partial<Bet>): Promise<Bet | undefined>;
+  
   // Session store for authentication
   sessionStore: session.Store;
 }
@@ -35,20 +45,24 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private contracts: Map<number, Contract>;
   private transactions: Map<number, Transaction>;
+  private bets: Map<number, Bet>;
   
   userCurrentId: number;
   contractCurrentId: number;
   transactionCurrentId: number;
+  betCurrentId: number;
   sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
     this.contracts = new Map();
     this.transactions = new Map();
+    this.bets = new Map();
     
     this.userCurrentId = 1;
     this.contractCurrentId = 1;
     this.transactionCurrentId = 1;
+    this.betCurrentId = 1;
     
     // Create memory-based session store
     const MemoryStore = require('memorystore')(session);
@@ -158,6 +172,70 @@ export class MemStorage implements IStorage {
         b.createdAt.getTime() - a.createdAt.getTime()
       );
   }
+  
+  // Bet related methods
+  async createBet(insertBet: InsertBet): Promise<Bet> {
+    const id = this.betCurrentId++;
+    const now = new Date();
+    const bet: Bet = {
+      ...insertBet,
+      id,
+      status: "open", 
+      outcome: "notResolved",
+      network: "Arbitrum Sepolia",
+      createdAt: now,
+      updatedAt: now,
+      acceptorAddress: null,
+      contractAddress: null,
+      transactionHash: null
+    };
+    this.bets.set(id, bet);
+    return bet;
+  }
+  
+  async getBet(id: number): Promise<Bet | undefined> {
+    return this.bets.get(id);
+  }
+  
+  async getBetByContractAddress(contractAddress: string): Promise<Bet | undefined> {
+    return Array.from(this.bets.values()).find(
+      bet => bet.contractAddress?.toLowerCase() === contractAddress.toLowerCase()
+    );
+  }
+  
+  async getBetsByCreator(creatorAddress: string): Promise<Bet[]> {
+    return Array.from(this.bets.values())
+      .filter(bet => bet.creatorAddress.toLowerCase() === creatorAddress.toLowerCase())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async getBetsByAcceptor(acceptorAddress: string): Promise<Bet[]> {
+    return Array.from(this.bets.values())
+      .filter(bet => bet.acceptorAddress && bet.acceptorAddress.toLowerCase() === acceptorAddress.toLowerCase())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async getBetsByStatus(status: string): Promise<Bet[]> {
+    return Array.from(this.bets.values())
+      .filter(bet => bet.status === status)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async updateBet(id: number, updates: Partial<Bet>): Promise<Bet | undefined> {
+    const bet = this.bets.get(id);
+    if (!bet) {
+      return undefined;
+    }
+    
+    const updatedBet: Bet = {
+      ...bet,
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    this.bets.set(id, updatedBet);
+    return updatedBet;
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -221,6 +299,27 @@ export class DatabaseStorage implements IStorage {
           block_number INTEGER,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           network TEXT NOT NULL
+        );
+        
+        CREATE TABLE IF NOT EXISTS bets (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          category TEXT NOT NULL,
+          outcome1 TEXT NOT NULL,
+          outcome2 TEXT NOT NULL,
+          end_date TIMESTAMP WITH TIME ZONE NOT NULL,
+          bet_amount TEXT NOT NULL,
+          creator_address TEXT NOT NULL,
+          acceptor_address TEXT,
+          resolver_address TEXT,
+          contract_address TEXT,
+          transaction_hash TEXT,
+          status TEXT NOT NULL DEFAULT 'open',
+          outcome TEXT NOT NULL DEFAULT 'notResolved',
+          network TEXT NOT NULL DEFAULT 'Arbitrum Sepolia',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
       `);
       
@@ -520,6 +619,183 @@ export class DatabaseStorage implements IStorage {
       network: row.network,
       createdAt: new Date(row.created_at)
     };
+  }
+  
+  private mapBetFromDb(row: Record<string, any>): Bet {
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      category: row.category as any, // Cast to expected enum type
+      outcome1: row.outcome1,
+      outcome2: row.outcome2,
+      betAmount: row.bet_amount,
+      endDate: new Date(row.end_date),
+      creatorAddress: row.creator_address,
+      acceptorAddress: row.acceptor_address,
+      resolverAddress: row.resolver_address,
+      contractAddress: row.contract_address,
+      transactionHash: row.transaction_hash,
+      status: row.status as any, // Cast to expected enum type
+      outcome: row.outcome as any, // Cast to expected enum type
+      network: row.network,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at)
+    };
+  }
+  
+  // Bet related methods
+  async createBet(insertBet: InsertBet): Promise<Bet> {
+    try {
+      const result = await this.pool.query(
+        `INSERT INTO bets (
+          title, description, category, outcome1, outcome2, end_date, 
+          bet_amount, creator_address, resolver_address
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *`,
+        [
+          insertBet.title,
+          insertBet.description,
+          insertBet.category,
+          insertBet.outcome1,
+          insertBet.outcome2,
+          insertBet.endDate,
+          insertBet.betAmount,
+          insertBet.creatorAddress,
+          insertBet.resolverAddress || null
+        ]
+      );
+      
+      return this.mapBetFromDb(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating bet:', error);
+      throw error;
+    }
+  }
+  
+  async getBet(id: number): Promise<Bet | undefined> {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM bets WHERE id = $1',
+        [id]
+      );
+      
+      if (result.rows.length === 0) {
+        return undefined;
+      }
+      
+      return this.mapBetFromDb(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching bet by ID:', error);
+      return undefined;
+    }
+  }
+  
+  async getBetByContractAddress(contractAddress: string): Promise<Bet | undefined> {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM bets WHERE LOWER(contract_address) = LOWER($1)',
+        [contractAddress]
+      );
+      
+      if (result.rows.length === 0) {
+        return undefined;
+      }
+      
+      return this.mapBetFromDb(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching bet by contract address:', error);
+      return undefined;
+    }
+  }
+  
+  async getBetsByCreator(creatorAddress: string): Promise<Bet[]> {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM bets WHERE LOWER(creator_address) = LOWER($1) ORDER BY created_at DESC',
+        [creatorAddress]
+      );
+      
+      return result.rows.map(row => this.mapBetFromDb(row));
+    } catch (error) {
+      console.error('Error fetching bets by creator:', error);
+      return [];
+    }
+  }
+  
+  async getBetsByAcceptor(acceptorAddress: string): Promise<Bet[]> {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM bets WHERE LOWER(acceptor_address) = LOWER($1) ORDER BY created_at DESC',
+        [acceptorAddress]
+      );
+      
+      return result.rows.map(row => this.mapBetFromDb(row));
+    } catch (error) {
+      console.error('Error fetching bets by acceptor:', error);
+      return [];
+    }
+  }
+  
+  async getBetsByStatus(status: string): Promise<Bet[]> {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM bets WHERE status = $1 ORDER BY created_at DESC',
+        [status]
+      );
+      
+      return result.rows.map(row => this.mapBetFromDb(row));
+    } catch (error) {
+      console.error('Error fetching bets by status:', error);
+      return [];
+    }
+  }
+  
+  async updateBet(id: number, updates: Partial<Bet>): Promise<Bet | undefined> {
+    try {
+      // Convert camelCase properties to snake_case for database
+      const updateFields: Record<string, any> = {};
+      if (updates.title) updateFields.title = updates.title;
+      if (updates.description) updateFields.description = updates.description;
+      if (updates.category) updateFields.category = updates.category;
+      if (updates.outcome1) updateFields.outcome1 = updates.outcome1;
+      if (updates.outcome2) updateFields.outcome2 = updates.outcome2;
+      if (updates.endDate) updateFields.end_date = updates.endDate;
+      if (updates.betAmount) updateFields.bet_amount = updates.betAmount;
+      if (updates.creatorAddress) updateFields.creator_address = updates.creatorAddress;
+      if (updates.acceptorAddress !== undefined) updateFields.acceptor_address = updates.acceptorAddress;
+      if (updates.resolverAddress !== undefined) updateFields.resolver_address = updates.resolverAddress;
+      if (updates.contractAddress !== undefined) updateFields.contract_address = updates.contractAddress;
+      if (updates.transactionHash !== undefined) updateFields.transaction_hash = updates.transactionHash;
+      if (updates.status) updateFields.status = updates.status;
+      if (updates.outcome) updateFields.outcome = updates.outcome;
+      if (updates.network) updateFields.network = updates.network;
+      
+      // Always update the updated_at timestamp
+      updateFields.updated_at = new Date();
+      
+      // Build the SET part of the SQL query
+      const setClause = Object.entries(updateFields)
+        .map(([key, _], index) => `${key} = $${index + 2}`)
+        .join(', ');
+      
+      const values = [id, ...Object.values(updateFields)];
+      
+      const result = await this.pool.query(
+        `UPDATE bets SET ${setClause} WHERE id = $1 RETURNING *`,
+        values
+      );
+      
+      if (result.rows.length === 0) {
+        return undefined;
+      }
+      
+      return this.mapBetFromDb(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating bet:', error);
+      return undefined;
+    }
   }
 }
 

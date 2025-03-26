@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Create a bet
+  // Create a bet with smart contract deployment
   app.post("/api/bet", async (req, res) => {
     try {
       const betSchema = z.object({
@@ -459,6 +459,458 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating bet:", error);
       return res.status(500).json({ message: "Failed to create bet" });
+    }
+  });
+  
+  // Create a bet directly in the database (for testing without blockchain interaction)
+  app.post("/api/bet/test", async (req, res) => {
+    try {
+      // Validate basic bet data
+      const testBetSchema = z.object({
+        username: z.string(),  // Creator's username
+        title: z.string(),
+        description: z.string(),
+        category: z.string(),
+        outcome1: z.string(),
+        outcome2: z.string(),
+        endDate: z.number().or(z.date()),
+        betAmount: z.string(),
+        resolverAddress: z.string().optional()
+      });
+      
+      const parsedBody = testBetSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid bet data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Get user info to validate the creator's wallet address
+      const user = await storage.getUserByUsername(parsedBody.data.username);
+      if (!user || !user.walletAddress) {
+        return res.status(404).json({ message: "User or user wallet not found" });
+      }
+      
+      // Create bet object with the creator's actual wallet address
+      const betData = {
+        title: parsedBody.data.title,
+        description: parsedBody.data.description,
+        category: parsedBody.data.category,
+        outcome1: parsedBody.data.outcome1,
+        outcome2: parsedBody.data.outcome2,
+        endDate: parsedBody.data.endDate instanceof Date 
+          ? parsedBody.data.endDate 
+          : new Date(parsedBody.data.endDate),
+        betAmount: parsedBody.data.betAmount,
+        creatorAddress: user.walletAddress,
+        resolverAddress: parsedBody.data.resolverAddress || user.walletAddress
+      };
+      
+      // Use insertBetSchema from shared/schema for validation against database schema
+      const insertData = insertBetSchema.parse(betData);
+      
+      // Save to database
+      const newBet = await storage.createBet(insertData);
+      
+      return res.status(201).json(newBet);
+    } catch (error) {
+      console.error("Error creating test bet:", error);
+      return res.status(500).json({ message: "Failed to create test bet" });
+    }
+  });
+  
+  // Get all bets
+  app.get("/api/bets", async (req, res) => {
+    try {
+      // Filter by status if provided in query
+      const status = req.query.status as string | undefined;
+      
+      let bets;
+      if (status) {
+        bets = await storage.getBetsByStatus(status);
+      } else {
+        // Get open bets by default
+        bets = await storage.getBetsByStatus("open");
+      }
+      
+      return res.json(bets);
+    } catch (error) {
+      console.error("Error fetching bets:", error);
+      return res.status(500).json({ message: "Failed to fetch bets" });
+    }
+  });
+  
+  // Get bet by ID
+  app.get("/api/bet/:betId", async (req, res) => {
+    try {
+      const betId = parseInt(req.params.betId);
+      if (isNaN(betId)) {
+        return res.status(400).json({ message: "Invalid bet ID" });
+      }
+      
+      const bet = await storage.getBet(betId);
+      if (!bet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      return res.json(bet);
+    } catch (error) {
+      console.error("Error fetching bet:", error);
+      return res.status(500).json({ message: "Failed to fetch bet" });
+    }
+  });
+  
+  // Get bet by contract address
+  app.get("/api/bet/contract/:contractAddress", async (req, res) => {
+    try {
+      const contractAddress = req.params.contractAddress;
+      if (!contractAddress || typeof contractAddress !== "string") {
+        return res.status(400).json({ message: "Invalid contract address" });
+      }
+      
+      const bet = await storage.getBetByContractAddress(contractAddress);
+      if (!bet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      return res.json(bet);
+    } catch (error) {
+      console.error("Error fetching bet by contract:", error);
+      return res.status(500).json({ message: "Failed to fetch bet" });
+    }
+  });
+  
+  // Get bets by creator address
+  app.get("/api/bets/creator/:creatorAddress", async (req, res) => {
+    try {
+      const creatorAddress = req.params.creatorAddress;
+      if (!creatorAddress || typeof creatorAddress !== "string") {
+        return res.status(400).json({ message: "Invalid creator address" });
+      }
+      
+      const bets = await storage.getBetsByCreator(creatorAddress);
+      return res.json(bets);
+    } catch (error) {
+      console.error("Error fetching bets by creator:", error);
+      return res.status(500).json({ message: "Failed to fetch bets" });
+    }
+  });
+  
+  // Get bets by acceptor address
+  app.get("/api/bets/acceptor/:acceptorAddress", async (req, res) => {
+    try {
+      const acceptorAddress = req.params.acceptorAddress;
+      if (!acceptorAddress || typeof acceptorAddress !== "string") {
+        return res.status(400).json({ message: "Invalid acceptor address" });
+      }
+      
+      const bets = await storage.getBetsByAcceptor(acceptorAddress);
+      return res.json(bets);
+    } catch (error) {
+      console.error("Error fetching bets by acceptor:", error);
+      return res.status(500).json({ message: "Failed to fetch bets" });
+    }
+  });
+  
+  // Update a bet (e.g., to set contract address, acceptor, or change status)
+  app.patch("/api/bet/:betId", async (req, res) => {
+    try {
+      const betId = parseInt(req.params.betId);
+      if (isNaN(betId)) {
+        return res.status(400).json({ message: "Invalid bet ID" });
+      }
+      
+      // Get the existing bet
+      const existingBet = await storage.getBet(betId);
+      if (!existingBet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      // Validate update payload
+      const updateSchema = z.object({
+        status: z.enum(["open", "accepted", "resolved", "voided"]).optional(),
+        outcome: z.enum(["notResolved", "outcome1Wins", "outcome2Wins", "draw"]).optional(),
+        acceptorAddress: z.string().nullable().optional(),
+        contractAddress: z.string().nullable().optional(),
+        transactionHash: z.string().nullable().optional(),
+      });
+      
+      const parsedBody = updateSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid update data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Apply updates
+      const updatedBet = await storage.updateBet(betId, parsedBody.data);
+      
+      return res.json(updatedBet);
+    } catch (error) {
+      console.error("Error updating bet:", error);
+      return res.status(500).json({ message: "Failed to update bet" });
+    }
+  });
+  
+  // Accept a bet
+  app.post("/api/bet/:betId/accept", async (req, res) => {
+    try {
+      const betId = parseInt(req.params.betId);
+      if (isNaN(betId)) {
+        return res.status(400).json({ message: "Invalid bet ID" });
+      }
+      
+      // Get the existing bet
+      const bet = await storage.getBet(betId);
+      if (!bet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      // Check if bet is already accepted
+      if (bet.status !== "open") {
+        return res.status(400).json({ 
+          message: "Bet cannot be accepted", 
+          reason: `Bet is already in ${bet.status} status` 
+        });
+      }
+      
+      // Validate request
+      const acceptSchema = z.object({
+        username: z.string(),
+        password: z.string(),
+        acceptorAddress: z.string()
+      });
+      
+      const parsedBody = acceptSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Use transactionService to accept the bet (this would handle the smart contract interaction)
+      // This is a placeholder for the actual implementation
+      const result = await transactionService.executeContractMethod(
+        parsedBody.data.username,
+        parsedBody.data.password,
+        bet.contractAddress || "",
+        "acceptBet",
+        [],
+        bet.betAmount // The value to send with the transaction (bet amount)
+      );
+      
+      // Update bet status and acceptor
+      const updatedBet = await storage.updateBet(betId, {
+        status: "accepted",
+        acceptorAddress: parsedBody.data.acceptorAddress,
+        transactionHash: result.transactionHash || result.hash
+      });
+      
+      return res.json(updatedBet);
+    } catch (error) {
+      console.error("Error accepting bet:", error);
+      return res.status(500).json({ message: "Failed to accept bet" });
+    }
+  });
+  
+  // Accept a bet (test version without blockchain interaction)
+  app.post("/api/bet/:betId/accept/test", async (req, res) => {
+    try {
+      const betId = parseInt(req.params.betId);
+      if (isNaN(betId)) {
+        return res.status(400).json({ message: "Invalid bet ID" });
+      }
+      
+      // Get the existing bet
+      const bet = await storage.getBet(betId);
+      if (!bet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      // Check if bet is already accepted
+      if (bet.status !== "open") {
+        return res.status(400).json({ 
+          message: "Bet cannot be accepted", 
+          reason: `Bet is already in ${bet.status} status` 
+        });
+      }
+      
+      // Validate request
+      const acceptSchema = z.object({
+        username: z.string(),  // Username of acceptor
+      });
+      
+      const parsedBody = acceptSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Get acceptor's wallet address
+      const user = await storage.getUserByUsername(parsedBody.data.username);
+      if (!user || !user.walletAddress) {
+        return res.status(404).json({ message: "User or user wallet not found" });
+      }
+      
+      // Update bet status and acceptor - no blockchain interaction in test mode
+      const updatedBet = await storage.updateBet(betId, {
+        status: "accepted",
+        acceptorAddress: user.walletAddress,
+        // For test purposes, we'll use a mock transaction hash
+        transactionHash: `test_acceptance_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+      });
+      
+      return res.json(updatedBet);
+    } catch (error) {
+      console.error("Error accepting test bet:", error);
+      return res.status(500).json({ message: "Failed to accept test bet" });
+    }
+  });
+  
+  // Resolve a bet
+  app.post("/api/bet/:betId/resolve", async (req, res) => {
+    try {
+      const betId = parseInt(req.params.betId);
+      if (isNaN(betId)) {
+        return res.status(400).json({ message: "Invalid bet ID" });
+      }
+      
+      // Get the existing bet
+      const bet = await storage.getBet(betId);
+      if (!bet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      // Check if bet can be resolved
+      if (bet.status !== "accepted") {
+        return res.status(400).json({ 
+          message: "Bet cannot be resolved", 
+          reason: `Bet must be in 'accepted' status, current status: ${bet.status}` 
+        });
+      }
+      
+      // Validate request
+      const resolveSchema = z.object({
+        username: z.string(),
+        password: z.string(),
+        outcome: z.enum(["outcome1Wins", "outcome2Wins", "draw"]),
+        resolverAddress: z.string()
+      });
+      
+      const parsedBody = resolveSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Check if resolver is authorized
+      if (bet.resolverAddress && 
+          bet.resolverAddress.toLowerCase() !== parsedBody.data.resolverAddress.toLowerCase()) {
+        return res.status(403).json({ 
+          message: "Unauthorized resolver", 
+          reason: "Only the designated resolver can resolve this bet" 
+        });
+      }
+      
+      // Use transactionService to resolve the bet (this would handle the smart contract interaction)
+      const outcomeValue = 
+        parsedBody.data.outcome === "outcome1Wins" ? 1 :
+        parsedBody.data.outcome === "outcome2Wins" ? 2 : 
+        3; // draw
+      
+      const result = await transactionService.executeContractMethod(
+        parsedBody.data.username,
+        parsedBody.data.password,
+        bet.contractAddress || "",
+        "resolveBet",
+        [outcomeValue],
+        "0"
+      );
+      
+      // Update bet status and outcome
+      const updatedBet = await storage.updateBet(betId, {
+        status: "resolved",
+        outcome: parsedBody.data.outcome,
+        transactionHash: result.transactionHash || result.hash
+      });
+      
+      return res.json(updatedBet);
+    } catch (error) {
+      console.error("Error resolving bet:", error);
+      return res.status(500).json({ message: "Failed to resolve bet" });
+    }
+  });
+  
+  // Resolve a bet (test version without blockchain interaction)
+  app.post("/api/bet/:betId/resolve/test", async (req, res) => {
+    try {
+      const betId = parseInt(req.params.betId);
+      if (isNaN(betId)) {
+        return res.status(400).json({ message: "Invalid bet ID" });
+      }
+      
+      // Get the existing bet
+      const bet = await storage.getBet(betId);
+      if (!bet) {
+        return res.status(404).json({ message: "Bet not found" });
+      }
+      
+      // Check if bet can be resolved
+      if (bet.status !== "accepted") {
+        return res.status(400).json({ 
+          message: "Bet cannot be resolved", 
+          reason: `Bet must be in 'accepted' status, current status: ${bet.status}` 
+        });
+      }
+      
+      // Validate request
+      const resolveSchema = z.object({
+        username: z.string(),  // Username of resolver
+        outcome: z.enum(["outcome1Wins", "outcome2Wins", "draw"])
+      });
+      
+      const parsedBody = resolveSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ 
+          message: "Invalid data", 
+          errors: parsedBody.error.errors 
+        });
+      }
+      
+      // Get resolver's wallet address
+      const user = await storage.getUserByUsername(parsedBody.data.username);
+      if (!user || !user.walletAddress) {
+        return res.status(404).json({ message: "User or user wallet not found" });
+      }
+      
+      // Check if resolver is authorized
+      if (bet.resolverAddress && 
+          bet.resolverAddress.toLowerCase() !== user.walletAddress.toLowerCase()) {
+        return res.status(403).json({ 
+          message: "Unauthorized resolver", 
+          reason: "Only the designated resolver can resolve this bet" 
+        });
+      }
+      
+      // Update bet status and outcome - no blockchain interaction in test mode
+      const updatedBet = await storage.updateBet(betId, {
+        status: "resolved",
+        outcome: parsedBody.data.outcome,
+        // For test purposes, we'll use a mock transaction hash
+        transactionHash: `test_resolution_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+      });
+      
+      return res.json(updatedBet);
+    } catch (error) {
+      console.error("Error resolving test bet:", error);
+      return res.status(500).json({ message: "Failed to resolve test bet" });
     }
   });
   

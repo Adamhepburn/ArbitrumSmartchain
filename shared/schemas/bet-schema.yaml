@@ -1,0 +1,188 @@
+---
+# Bet Schema YAML Definition
+# This schema defines the structure and validation rules for bets in the platform
+
+openapi: 3.0.0
+info:
+  title: Bet Schema
+  description: Schema for decentralized betting platform
+  version: 1.0.0
+
+components:
+  schemas:
+    Bet:
+      type: object
+      required:
+        - title
+        - description
+        - category
+        - outcome1
+        - outcome2
+        - endDate
+        - betAmount
+        - creatorAddress
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the bet
+          readOnly: true
+        
+        # Basic Bet Information
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Title of the bet
+          example: "Super Bowl Winner 2026"
+        
+        description:
+          type: string
+          minLength: 10
+          maxLength: 1000
+          description: Detailed description of the bet
+          example: "A bet on which team will win the 2026 Super Bowl."
+        
+        category:
+          type: string
+          enum: [sports, politics, entertainment, crypto, finance, other]
+          description: Category the bet belongs to
+          example: "sports"
+        
+        # Outcomes
+        outcome1:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: First possible outcome
+          example: "Kansas City Chiefs"
+        
+        outcome2:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Second possible outcome
+          example: "San Francisco 49ers"
+        
+        # Time and Amount Details
+        createdAt:
+          type: string
+          format: date-time
+          description: When the bet was created
+          readOnly: true
+        
+        endDate:
+          type: string
+          format: date-time
+          description: When the bet resolution period ends
+          example: "2026-02-10T00:00:00Z"
+        
+        betAmount:
+          type: number
+          format: double
+          minimum: 0.001
+          description: Amount of ETH to stake on the bet
+          example: 0.1
+        
+        # Participant Details
+        creatorAddress:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{40}$"
+          description: Wallet address of the bet creator
+          example: "0xD4273B5BE51C48BB5FF3120EF6ACF01232F5C162"
+        
+        acceptorAddress:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{40}$"
+          description: Wallet address of the person accepting the bet
+          nullable: true
+          example: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+        
+        resolverAddress:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{40}$"
+          description: Wallet address of the third-party resolver (optional)
+          nullable: true
+          example: "0x0000000000000000000000000000000000000000"
+        
+        # Contract Details
+        contractAddress:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{40}$"
+          description: Address of the deployed betting contract
+          readOnly: true
+          example: "0x8765309AC6D56C2C5E4a1fB9bbA3E41175480DD2"
+        
+        transactionHash:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{64}$"
+          description: Hash of the transaction that created the bet
+          readOnly: true
+          example: "0xabc123..."
+        
+        # Status Information
+        status:
+          type: string
+          enum: [open, accepted, resolved, voided]
+          default: open
+          description: Current status of the bet
+          example: "open"
+        
+        outcome:
+          type: string
+          enum: [notResolved, outcome1Wins, outcome2Wins, draw]
+          default: notResolved
+          description: The final outcome of the bet
+          example: "notResolved"
+        
+        network:
+          type: string
+          description: Blockchain network where the bet is deployed
+          default: "Arbitrum Sepolia"
+          example: "Arbitrum Sepolia"
+        
+    BetList:
+      type: array
+      items:
+        $ref: '#/components/schemas/Bet'
+      
+    BetCreationRequest:
+      type: object
+      required:
+        - title
+        - description
+        - category
+        - outcome1
+        - outcome2
+        - endDate
+        - betAmount
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        description:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        category:
+          type: string
+          enum: [sports, politics, entertainment, crypto, finance, other]
+        outcome1:
+          type: string
+          minLength: 2
+          maxLength: 100
+        outcome2:
+          type: string
+          minLength: 2
+          maxLength: 100
+        endDate:
+          type: string
+          format: date-time
+        betAmount:
+          type: string
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+        resolverAddress:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{40}$"
+          nullable: true

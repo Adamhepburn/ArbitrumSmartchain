@@ -59,7 +59,7 @@ contract BettingContract is ReentrancyGuard, Pausable, Ownable {
      * @dev Place a bet with a prediction timestamp
      * @param _predictionTimestamp The timestamp the user is betting on
      */
-    function placeBet(uint256 _predictionTimestamp) external payable nonReentrant whenNotPaused {
+    function placeBet(uint256 _predictionTimestamp) public payable nonReentrant whenNotPaused {
         require(msg.value >= minBetAmount, "Bet amount below minimum");
         require(msg.value <= maxBetAmount, "Bet amount above maximum");
         require(_predictionTimestamp > block.timestamp, "Prediction must be in the future");
@@ -109,7 +109,7 @@ contract BettingContract is ReentrancyGuard, Pausable, Ownable {
     /**
      * @dev Resolve a bet (owner only)
      * @param _betId ID of the bet to resolve
-     * @param _didWin Whether the bet won or lost
+     * @param _didWin Optional parameter to override the winner determination
      */
     function resolveBet(uint256 _betId, bool _didWin) external onlyOwner nonReentrant {
         require(_betId < totalBets, "Bet does not exist");
@@ -139,6 +139,43 @@ contract BettingContract is ReentrancyGuard, Pausable, Ownable {
         }
         
         emit BetResolved(_betId, bet.bettor, _didWin, payout);
+    }
+    
+    /**
+     * @dev Resolve a bet using block.timestamp for randomness
+     * @param _betId ID of the bet to resolve
+     */
+    function resolveRandomBet(uint256 _betId) external onlyOwner nonReentrant {
+        require(_betId < totalBets, "Bet does not exist");
+        Bet storage bet = bets[_betId];
+        
+        require(!bet.isResolved, "Bet already resolved");
+        require(block.timestamp >= bet.predictionTimestamp, "Cannot resolve before prediction time");
+        
+        // Use block.timestamp for randomness
+        bool didWin = uint256(keccak256(abi.encodePacked(block.timestamp, _betId, bet.bettor))) % 2 == 0;
+        
+        bet.isResolved = true;
+        bet.didWin = didWin;
+        
+        totalBetsResolved++;
+        
+        uint256 payout = 0;
+        if (didWin) {
+            // Calculate winning amount minus house edge
+            payout = bet.amount + (bet.amount * (10000 - houseEdgePercent) / 10000);
+            
+            require(address(this).balance >= payout, "Contract has insufficient funds");
+            
+            // Update contract balance
+            totalContractBalance -= payout;
+            
+            // Send payout to winner
+            (bool success, ) = payable(bet.bettor).call{value: payout}("");
+            require(success, "Failed to send payout");
+        }
+        
+        emit BetResolved(_betId, bet.bettor, didWin, payout);
     }
     
     /**
@@ -216,9 +253,9 @@ contract BettingContract is ReentrancyGuard, Pausable, Ownable {
     }
     
     /**
-     * @dev Deposit funds to the contract
+     * @dev Deposit funds to the contract - can be called by anyone
      */
-    function depositFunds() external payable onlyOwner {
+    function depositFunds() public payable {
         require(msg.value > 0, "Deposit amount must be greater than 0");
         
         emit FundsDeposited(msg.sender, msg.value);
@@ -230,6 +267,14 @@ contract BettingContract is ReentrancyGuard, Pausable, Ownable {
      */
     function getContractStats() external view returns (uint256, uint256, uint256) {
         return (address(this).balance, totalBets, totalBetsResolved);
+    }
+    
+    /**
+     * @dev Get contract's balance
+     * @return Contract's current balance
+     */
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
     }
 
     // ======== Fallback and Receive Functions ========
